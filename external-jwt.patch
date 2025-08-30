@@ -48,3 +48,164 @@ index 0a89313b..06637f9d 100644
    logger.info('OpenID Connect configured successfully.');
  }
  
+diff --git a/api/strategies/externalJwtStrategy.js b/api/strategies/externalJwtStrategy.js
+new file mode 100644
+index 00000000..8ef7b878
+--- /dev/null
++++ b/api/strategies/externalJwtStrategy.js
+@@ -0,0 +1,155 @@
++const passport = require('passport');
++const { HttpsProxyAgent } = require('https-proxy-agent');
++const { logger } = require('@librechat/data-schemas');
++const { ErrorTypes } = require('librechat-data-provider');
++const { Strategy: JwtStrategy, ExtractJwt } = require('passport-jwt');
++const { isEnabled } = require('@librechat/api');
++const { findUser, createUser, updateUser } = require('~/models');
++const { getBalanceConfig } = require('~/server/services/Config');
++const { getOpenIdConfig } = require('./openidStrategy');
++const jwksRsa = require('jwks-rsa');
++
++function getFullName(userinfo) {
++  if (process.env.OPENID_NAME_CLAIM) {
++    return userinfo[process.env.OPENID_NAME_CLAIM];
++  }
++
++  if (userinfo.given_name && userinfo.family_name) {
++    return `${userinfo.given_name} ${userinfo.family_name}`;
++  }
++
++  if (userinfo.given_name) {
++    return userinfo.given_name;
++  }
++
++  if (userinfo.family_name) {
++    return userinfo.family_name;
++  }
++
++  return userinfo.username || userinfo.email;
++}
++
++function convertToUsername(input, defaultValue = '') {
++  if (typeof input === 'string') {
++    return input;
++  } else if (Array.isArray(input)) {
++    return input.join('_');
++  }
++
++  return defaultValue;
++}
++
++async function setupExternalJwt() {
++  try {
++    /** @type {Configuration} */
++    const openidConfig = getOpenIdConfig();
++
++    let jwksRsaOptions = {
++      cache: isEnabled(process.env.OPENID_JWKS_URL_CACHE_ENABLED) || true,
++      cacheMaxAge: process.env.OPENID_JWKS_URL_CACHE_TIME
++        ? eval(process.env.OPENID_JWKS_URL_CACHE_TIME)
++        : 60000,
++      jwksUri: openidConfig.serverMetadata().jwks_uri,
++    };
++
++    logger.info(`[externalJwtStrategy] OpenID authentication configuration`, { jwksRsaOptions });
++
++    if (process.env.PROXY) {
++      jwksRsaOptions.requestAgent = new HttpsProxyAgent(process.env.PROXY);
++    }
++
++    const strategy = new JwtStrategy(
++      {
++        jwtFromRequest: ExtractJwt.fromUrlQueryParameter('id_token'),
++        secretOrKeyProvider: jwksRsa.passportJwtSecret(jwksRsaOptions),
++      },
++      async (claims, done) => {
++        try {
++          let user = await findUser({ openidId: claims.sub });
++          logger.info(
++            `[externalJwtStrategy] user ${user ? 'found' : 'not found'} with openidId: ${claims.sub}`,
++          );
++
++          if (!user) {
++            user = await findUser({ email: claims.email });
++            logger.info(
++              `[externalJwtStrategy] user ${user ? 'found' : 'not found'} with email: ${
++                claims.email
++              } for openidId: ${claims.sub}`,
++            );
++          }
++
++          if (user != null && user.provider !== 'openid') {
++            logger.info(
++              `[externalJwtStrategy] Attempted OpenID login by user ${user.email}, was registered with "${user.provider}" provider`,
++            );
++            return done(null, false, {
++              message: ErrorTypes.AUTH_FAILED,
++            });
++          }
++
++          const userinfo = claims;
++          const fullName = getFullName(userinfo);
++
++          let username = '';
++          if (process.env.OPENID_USERNAME_CLAIM) {
++            username = userinfo[process.env.OPENID_USERNAME_CLAIM];
++          } else {
++            username = convertToUsername(
++              userinfo.preferred_username || userinfo.username || userinfo.email,
++            );
++          }
++
++          if (!user) {
++            user = {
++              provider: 'openid',
++              openidId: userinfo.sub,
++              username,
++              email: userinfo.email || '',
++              emailVerified: userinfo.email_verified || false,
++              name: fullName,
++              idOnTheSource: userinfo.oid,
++            };
++
++            const balanceConfig = await getBalanceConfig();
++
++            user = await createUser(user, balanceConfig, true, true);
++          } else {
++            user.provider = 'openid';
++            user.openidId = userinfo.sub;
++            user.username = username;
++            user.name = fullName;
++            user.idOnTheSource = userinfo.oid;
++          }
++
++          user = await updateUser(user._id, user);
++
++          logger.info(
++            `[externalJwtStrategy] login success externalJwt: ${user.openidId} | email: ${user.email} | username: ${user.username} `,
++            {
++              user: {
++                openidId: user.openidId,
++                username: user.username,
++                email: user.email,
++                name: user.name,
++              },
++            },
++          );
++
++          done(null, { ...user, claims });
++        } catch (err) {
++          logger.error('[externalJwtStrategy] login failed', err);
++          done(err);
++        }
++      },
++    );
++
++    passport.use('externalJwt', strategy);
++  } catch (err) {
++    logger.error('[externalJwtStrategy]', err);
++  }
++}
++
++module.exports = {
++  setupExternalJwt,
++};
