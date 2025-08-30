@@ -29,7 +29,7 @@ By default, the patch does not change anything; the software will work as expect
 
 > [!NOTE]
 > These features were originally made to work with Cognito:
-> - Support for external JWT, as Amplify does not like when the app client has a secret (which are necessary for LibreChat).
+> - Support for external JWT, as Amplify does not like when the App Client has a secret (which are necessary for LibreChat).
 > - Cookie SameSite for an integration into an IFrame.
 
 # Improve the patch
@@ -66,8 +66,8 @@ git add api/
 git diff --cached > ../external-jwt.patch
 ```
 
-> [!NOTE]
-> Don't forget to update the base.json file if you are patching a newer tag.
+> [!IMPORTANT]
+> If you are patching a newer tag, don't forget to update the `base.json` file.
 
 # Build a new image
 
@@ -80,4 +80,4 @@ To do that:
 
 > [!NOTE]
 > Building the image takes **40 minutes**. <br />
-> The best way to test the changes is to test them locally by [starting it locally](https://www.librechat.ai/docs/quick_start/local_setup#step-3-run-the-app) first.
+> The best way to test the changes is to [test them locally first](https://www.librechat.ai/docs/quick_start/local_setup#step-3-run-the-app).
