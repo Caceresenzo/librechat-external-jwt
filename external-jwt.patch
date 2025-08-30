@@ -1,0 +1,50 @@
+diff --git a/api/server/routes/oauth.js b/api/server/routes/oauth.js
+index 666e5d2b..f6d64848 100644
+--- a/api/server/routes/oauth.js
++++ b/api/server/routes/oauth.js
+@@ -128,6 +128,20 @@ router.get(
+   oauthHandler,
+ );
+ 
++/**
++ * External JWT Routes
++ */
++router.get(
++  '/external-jwt',
++  passport.authenticate('externalJwt', {
++    // failureRedirect: `${domains.client}/oauth/error`,
++    failureMessage: true,
++    session: false,
++  }),
++  setBalanceConfig,
++  oauthHandler,
++);
++
+ /**
+  * GitHub Routes
+  */
+diff --git a/api/server/socialLogins.js b/api/server/socialLogins.js
+index 0a89313b..06637f9d 100644
+--- a/api/server/socialLogins.js
++++ b/api/server/socialLogins.js
+@@ -13,6 +13,9 @@ const {
+   appleLogin,
+   setupSaml,
+ } = require('~/strategies');
++const {
++  setupExternalJwt,
++} = require('~/strategies/externalJwtStrategy');
+ const { getLogStores } = require('~/cache');
+ 
+ /**
+@@ -41,6 +44,10 @@ async function configureOpenId(app) {
+     logger.info('OpenID token reuse is enabled.');
+     passport.use('openidJwt', openIdJwtLogin(config));
+   }
++  if (isEnabled(process.env.OPENID_ALLOW_EXTERNAL_JWT)) {
++    logger.info('OpenID external jwt is enabled.');
++    setupExternalJwt(config);
++  }
+   logger.info('OpenID Connect configured successfully.');
+ }
+ 
