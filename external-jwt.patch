@@ -23,6 +23,42 @@ index 666e5d2b..f6d64848 100644
  /**
   * GitHub Routes
   */
+diff --git a/api/server/services/AuthService.js b/api/server/services/AuthService.js
+index 8c7cbf7d..6ca3fdbc 100644
+--- a/api/server/services/AuthService.js
++++ b/api/server/services/AuthService.js
+@@ -380,13 +380,13 @@ const setAuthTokens = async (userId, res, sessionId = null) => {
+       expires: new Date(refreshTokenExpires),
+       httpOnly: true,
+       secure: isProduction,
+-      sameSite: 'strict',
++      sameSite: process.env.COOKIES_SAME_SITE || 'strict',
+     });
+     res.cookie('token_provider', 'librechat', {
+       expires: new Date(refreshTokenExpires),
+       httpOnly: true,
+       secure: isProduction,
+-      sameSite: 'strict',
++      sameSite: process.env.COOKIES_SAME_SITE || 'strict',
+     });
+     return token;
+   } catch (error) {
+@@ -427,13 +427,13 @@ const setOpenIDAuthTokens = (tokenset, res) => {
+       expires: expirationDate,
+       httpOnly: true,
+       secure: isProduction,
+-      sameSite: 'strict',
++      sameSite: process.env.COOKIES_SAME_SITE || 'strict',
+     });
+     res.cookie('token_provider', 'openid', {
+       expires: expirationDate,
+       httpOnly: true,
+       secure: isProduction,
+-      sameSite: 'strict',
++      sameSite: process.env.COOKIES_SAME_SITE || 'strict',
+     });
+     return tokenset.access_token;
+   } catch (error) {
 diff --git a/api/server/socialLogins.js b/api/server/socialLogins.js
 index 0a89313b..06637f9d 100644
 --- a/api/server/socialLogins.js
